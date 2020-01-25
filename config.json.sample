@@ -1,0 +1,10 @@
+[
+  {
+    "source": "source_url_1",
+    "target": "target_url_1"
+  },
+  {
+    "source": "source_url_2",
+    "target": "target_url_2"
+  }
+]

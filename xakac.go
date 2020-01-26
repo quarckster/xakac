@@ -26,7 +26,8 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
     return fmt.Print(time.Now().UTC().Format("2006-01-02T15:04:05Z") + ": " + string(bytes))
 }
 
-func listenToChannel(source string, target string) {
+func listenToChannel(source string, target string, wg sync.WaitGroup) {
+    defer wg.Done()
     stream, err := eventsource.Subscribe(source, "")
     if err != nil {
         log.Fatal(err)
@@ -55,8 +56,7 @@ func parseEnviron() []Route {
     for _, envVar := range os.Environ() {
         if strings.Contains(envVar, "XAKAC_SOURCE_TARGET_") {
             pair := strings.Split(strings.Split(envVar, "=")[1], ",")
-            route := Route{pair[0], pair[1]}
-            routes = append(routes, route)
+            routes = append(routes, Route{pair[0], pair[1]})
         }
     }
     return routes
@@ -77,9 +77,9 @@ func parseConfig(path string) []Route {
 
 func startListeners(routes []Route) {
     var wg sync.WaitGroup
-    wg.Add(len(routes))
     for _, route := range routes {
-        go listenToChannel(route.Source, route.Target)
+        go listenToChannel(route.Source, route.Target, wg)
+        wg.Add(1)
     }
     wg.Wait()
 }

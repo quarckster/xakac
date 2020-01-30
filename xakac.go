@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -48,7 +50,7 @@ func prepareRequest(target string, payload string) http.Request {
 	var parsedStructure interface{}
 	err := json.Unmarshal([]byte(payload), &parsedStructure)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	payloadMap := parsedStructure.(map[string]interface{})
 	body, _ := json.Marshal(payloadMap["body"])
@@ -65,7 +67,12 @@ func deliverPayload(payload string, source string, target string) {
 	client := http.Client{}
 	resp, err := client.Do(&request)
 	if err != nil {
-		log.Fatal(err)
+		var DNSError *net.DNSError
+		if errors.As(err, &DNSError) {
+			log.Println("delivering payload to", target, "failed:", DNSError.Err)
+			return
+		}
+		log.Println("delivering payload to", target, "failed:", err)
 	}
 	log.Println("payload from", source, "has been sent to", target, "status code", resp.StatusCode)
 }
@@ -104,10 +111,10 @@ func startListeners(routes []Route) {
 }
 
 func getRoutes() []Route {
-	configPathPtr := flag.String("config", "", "path to a config file in json format")
+	configPath := *flag.String("config", "", "path to a config file in json format")
 	flag.Parse()
-	if *configPathPtr != "" {
-		return parseConfig(*configPathPtr)
+	if configPath != "" {
+		return parseConfig(configPath)
 	}
 	return parseEnviron()
 }

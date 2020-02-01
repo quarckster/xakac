@@ -20,7 +20,7 @@ import (
 
 type logWriter struct{}
 
-type Route struct {
+type route struct {
 	Source string
 	Target string
 }
@@ -77,23 +77,23 @@ func deliverPayload(payload string, source string, target string) {
 	log.Println("payload from", source, "has been sent to", target, "status code", resp.StatusCode)
 }
 
-func parseEnviron() []Route {
-	var routes []Route
+func parseEnviron() []route {
+	var routes []route
 	for _, envVar := range os.Environ() {
 		if strings.Contains(envVar, "XAKAC_SOURCE_TARGET_") {
 			pair := strings.Split(strings.Split(envVar, "=")[1], ",")
-			routes = append(routes, Route{pair[0], pair[1]})
+			routes = append(routes, route{pair[0], pair[1]})
 		}
 	}
 	return routes
 }
 
-func parseConfig(path string) []Route {
+func parseConfig(path string) []route {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	var routes []Route
+	var routes []route
 	err = json.Unmarshal(data, &routes)
 	if err != nil {
 		log.Fatal(err)
@@ -101,7 +101,7 @@ func parseConfig(path string) []Route {
 	return routes
 }
 
-func startListeners(routes []Route) {
+func startListeners(routes []route) {
 	var wg sync.WaitGroup
 	for _, route := range routes {
 		go listenToChannel(route.Source, route.Target, &wg)
@@ -110,7 +110,7 @@ func startListeners(routes []Route) {
 	wg.Wait()
 }
 
-func getRoutes() []Route {
+func getRoutes() []route {
 	configPath := *flag.String("config", "", "path to a config file in json format")
 	flag.Parse()
 	if configPath != "" {

@@ -3,12 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -67,12 +65,8 @@ func deliverPayload(payload string, source string, target string) {
 	client := http.Client{}
 	resp, err := client.Do(&request)
 	if err != nil {
-		var DNSError *net.DNSError
-		if errors.As(err, &DNSError) {
-			log.Println("delivering payload to", target, "failed:", DNSError.Err)
-			return
-		}
-		log.Println("delivering payload to", target, "failed:", err)
+		log.Println("delivering payload failed:", err)
+		return
 	}
 	log.Println("payload from", source, "has been sent to", target, "status code", resp.StatusCode)
 }

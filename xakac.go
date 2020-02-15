@@ -30,8 +30,9 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 func listenToChannel(source string, target string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	stream, err := eventsource.Subscribe(source, "")
+	stream.Logger = log.New(new(logWriter), "", 0)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	for {
 		ev := <-stream.Events

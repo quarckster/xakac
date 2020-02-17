@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/donovanhide/eventsource"
+	"github.com/r3labs/sse"
 )
 
 type logWriter struct{}
@@ -29,25 +29,15 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 
 func listenToChannel(source string, target string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	stream, err := eventsource.Subscribe(source, "")
-	stream.Logger = log.New(new(logWriter), "", 0)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	for {
-		ev := <-stream.Events
-		if ev.Event() == "ready" {
-			log.Println("listening to", source)
-		}
-		if ev.Event() == "" {
-			deliverPayload(ev.Data(), source, target)
-		}
-	}
+	client := sse.NewClient(source)
+	client.Subscribe("messages", func(msg *sse.Event) {
+		deliverPayload(msg.Data, source, target)
+	})
 }
 
-func prepareRequest(target string, payload string) http.Request {
+func prepareRequest(target string, payload []byte) http.Request {
 	var parsedStructure interface{}
-	err := json.Unmarshal([]byte(payload), &parsedStructure)
+	err := json.Unmarshal(payload, &parsedStructure)
 	if err != nil {
 		log.Println(err)
 	}
@@ -61,7 +51,7 @@ func prepareRequest(target string, payload string) http.Request {
 	return *req
 }
 
-func deliverPayload(payload string, source string, target string) {
+func deliverPayload(payload []byte, source string, target string) {
 	request := prepareRequest(target, payload)
 	client := http.Client{}
 	resp, err := client.Do(&request)

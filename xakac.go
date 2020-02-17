@@ -27,12 +27,23 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Print(time.Now().UTC().Format("2006-01-02T15:04:05Z") + ": " + string(bytes))
 }
 
-func listenToChannel(source string, target string, wg *sync.WaitGroup) {
+func listenToStream(source string, target string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client := sse.NewClient(source)
-	client.Subscribe("messages", func(msg *sse.Event) {
-		deliverPayload(msg.Data, source, target)
+	err := client.Subscribe("", func(msg *sse.Event) {
+		event := string(msg.Event[:])
+		switch {
+		case event == "ready":
+			log.Println("Listening to", source)
+		case event == "ping":
+			log.Println("Ping from", source)
+		default:
+			deliverPayload(msg.Data, source, target)
+		}
 	})
+	if err != nil {
+		log.Println("Couldn't subscribe to", source)
+	}
 }
 
 func prepareRequest(target string, payload []byte) http.Request {
@@ -89,7 +100,7 @@ func parseConfig(path string) []route {
 func startListeners(routes []route) {
 	var wg sync.WaitGroup
 	for _, route := range routes {
-		go listenToChannel(route.Source, route.Target, &wg)
+		go listenToStream(route.Source, route.Target, &wg)
 		wg.Add(1)
 	}
 	wg.Wait()

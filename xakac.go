@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r3labs/sse"
+	sse "github.com/quarckster/sse"
 )
 
 type logWriter struct{}
@@ -27,22 +27,24 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Print(time.Now().UTC().Format("2006-01-02T15:04:05Z") + ": " + string(bytes))
 }
 
-func listenToStream(source string, target string, wg *sync.WaitGroup) {
+func subscribeToStream(source string, target string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client := sse.NewClient(source)
+	client.OnDisconnect(func(client *sse.Client) {
+		log.Println("disconnected from", source)
+	})
 	err := client.Subscribe("", func(msg *sse.Event) {
 		event := string(msg.Event[:])
 		switch {
 		case event == "ready":
-			log.Println("Listening to", source)
+			log.Println("forwarding", source, "to", target)
 		case event == "ping":
-			log.Println("Ping from", source)
 		default:
 			deliverPayload(msg.Data, source, target)
 		}
 	})
 	if err != nil {
-		log.Println("Couldn't subscribe to", source)
+		log.Println(err)
 	}
 }
 
@@ -100,7 +102,7 @@ func parseConfig(path string) []route {
 func startListeners(routes []route) {
 	var wg sync.WaitGroup
 	for _, route := range routes {
-		go listenToStream(route.Source, route.Target, &wg)
+		go subscribeToStream(route.Source, route.Target, &wg)
 		wg.Add(1)
 	}
 	wg.Wait()

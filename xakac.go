@@ -27,13 +27,14 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Print(time.Now().UTC().Format("2006-01-02T15:04:05Z") + ": " + string(bytes))
 }
 
-func stop(route route, wg *sync.WaitGroup, errChan chan route) {
+func stop(route route, wg *sync.WaitGroup, routeChan chan route) {
 	wg.Done()
-	errChan <- route
+	// In case of any sse client error we would like to reconnect
+	routeChan <- route
 }
 
-func subscribeToStream(route route, wg *sync.WaitGroup, errChan chan route) {
-	defer stop(route, wg, errChan)
+func subscribeToStream(route route, wg *sync.WaitGroup, routeChan chan route) {
+	defer stop(route, wg, routeChan)
 	client := sse.NewClient(route.Source)
 	client.OnDisconnect(func(client *sse.Client) {
 		log.Println("disconnected from", route.Source)
@@ -104,24 +105,22 @@ func parseConfig(path string) []route {
 	return routes
 }
 
-func supervise(wg *sync.WaitGroup, errChan chan route) {
+func supervise(wg *sync.WaitGroup, routeChan chan route) {
 	defer wg.Done()
-	for route := range errChan {
-		log.Println("Reconnecting")
+	for route := range routeChan {
 		wg.Add(1)
-		go subscribeToStream(route, wg, errChan)
+		go subscribeToStream(route, wg, routeChan)
 	}
 }
 
 func startListeners(routes []route) {
 	var wg sync.WaitGroup
-	errChan := make(chan route)
-	for _, route := range routes {
-		wg.Add(1)
-		go subscribeToStream(route, &wg, errChan)
-	}
+	routeChan := make(chan route)
 	wg.Add(1)
-	go supervise(&wg, errChan)
+	go supervise(&wg, routeChan)
+	for _, route := range routes {
+		routeChan <- route
+	}
 	wg.Wait()
 }
 

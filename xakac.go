@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	sse "github.com/quarckster/sse"
+	sse "github.com/r3labs/sse"
 )
 
 type logWriter struct{}
@@ -27,20 +27,25 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Print(time.Now().UTC().Format("2006-01-02T15:04:05Z") + ": " + string(bytes))
 }
 
-func subscribeToStream(source string, target string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	client := sse.NewClient(source)
+func stop(route route, wg *sync.WaitGroup, errChan chan route) {
+	wg.Done()
+	errChan <- route
+}
+
+func subscribeToStream(route route, wg *sync.WaitGroup, errChan chan route) {
+	defer stop(route, wg, errChan)
+	client := sse.NewClient(route.Source)
 	client.OnDisconnect(func(client *sse.Client) {
-		log.Println("disconnected from", source)
+		log.Println("disconnected from", route.Source)
 	})
 	err := client.Subscribe("", func(msg *sse.Event) {
 		event := string(msg.Event[:])
 		switch {
 		case event == "ready":
-			log.Println("forwarding", source, "to", target)
+			log.Println("forwarding", route.Source, "to", route.Target)
 		case event == "ping":
 		default:
-			deliverPayload(msg.Data, source, target)
+			deliverPayload(msg.Data, route.Source, route.Target)
 		}
 	})
 	if err != nil {
@@ -99,12 +104,24 @@ func parseConfig(path string) []route {
 	return routes
 }
 
+func supervise(wg *sync.WaitGroup, errChan chan route) {
+	defer wg.Done()
+	for route := range errChan {
+		log.Println("Reconnecting")
+		wg.Add(1)
+		go subscribeToStream(route, wg, errChan)
+	}
+}
+
 func startListeners(routes []route) {
 	var wg sync.WaitGroup
+	errChan := make(chan route)
 	for _, route := range routes {
-		go subscribeToStream(route.Source, route.Target, &wg)
 		wg.Add(1)
+		go subscribeToStream(route, &wg, errChan)
 	}
+	wg.Add(1)
+	go supervise(&wg, errChan)
 	wg.Wait()
 }
 

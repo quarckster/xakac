@@ -85,7 +85,8 @@ func parseEnviron() []route {
 	var routes []route
 	for _, envVar := range os.Environ() {
 		if strings.Contains(envVar, "XAKAC_SOURCE_TARGET_") {
-			pair := strings.Split(strings.Split(envVar, "=")[1], ",")
+			envVarValue := strings.Join(strings.Split(envVar, "=")[1:], "=")
+			pair := strings.Split(envVarValue, ",")
 			routes = append(routes, route{pair[0], pair[1]})
 		}
 	}
